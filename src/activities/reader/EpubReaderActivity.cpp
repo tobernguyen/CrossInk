@@ -70,6 +70,7 @@
 #if CROSSINK_APP_CAP_TOUCH
 #include "components/TouchHeaderBackButton.h"
 #endif
+#include "bilingual/Bilingual.h"  // bilingual
 #include "fontIds.h"
 #include "util/BookCacheUtils.h"
 #include "util/BookMoveUtils.h"
@@ -2138,6 +2139,7 @@ void EpubReaderActivity::onEnter() {
   // instead would leave reader mode and the bookmark/clipping stores unbalanced.
   captureGlobalReaderSettings();
   epub->setupCacheDir();
+  bilingual::onBookOpened(*epub, mappedInput.hasTouchHardware());  // bilingual: before any section is laid out
   {
     GfxRenderer::FrameBufferLoan loan(renderer);
     epub->ensureOptimizerImageIndex();
@@ -2273,6 +2275,7 @@ void EpubReaderActivity::onEnter() {
 }
 
 void EpubReaderActivity::onExit() {
+  bilingual::onBookClosed();  // bilingual
   sdFontSystem.setSettingsPersistenceCallback(nullptr, nullptr);
   clearPendingManualPageTurns(/*requestRecoveryRedraw=*/false);
   mappedInput.setReaderTouchscreenOverride(false);
@@ -2641,6 +2644,13 @@ void EpubReaderActivity::loop() {
 #endif
 
   const auto touch = ReaderUtils::detectTouchPageTurn(renderer, mappedInput);
+  // bilingual: while a translation tooltip shows, a tap on a long one pages it; any other tap or Back
+  // only closes it (swipes still turn).
+  if (bilingual::tooltipActive() && (touch.tapped || mappedInput.wasReleased(MappedInputManager::Button::Back))) {
+    if (!touch.tapped || !bilingual::scrollTooltipAt(touch.x, touch.y)) bilingual::dismissTooltip();
+    requestUpdate();
+    return;
+  }
   if (touch.tapped &&
       ReaderUtils::isBottomStatusBarTap(renderer, touch.y, UITheme::getInstance().getStatusBarHeight())) {
     if (SETTINGS.tapToHideStatusBar) {
@@ -3460,11 +3470,19 @@ bool EpubReaderActivity::handleTouchDictionaryLookup() {
     touchDictionaryLookupHandled = false;
     return false;
   }
-  if (touchDictionaryLookupHandled || heldMs < TOUCH_DICTIONARY_LOOKUP_HOLD_MS) {
+  // bilingual: one Hold Time setting for the dictionary lookup and the tooltip (stock: 1 s).
+  if (touchDictionaryLookupHandled || heldMs < bilingual::holdMs()) {
     return false;
   }
 
   touchDictionaryLookupHandled = true;
+  // bilingual: in a translated book in tooltip mode the hold shows the sentence's translation.
+  if (bilingual::tooltipEnabled() && section) {
+    bilingual::selectAt(currentSpineIndex, section->currentPage, touchX, touchY);
+    mappedInput.suppressCurrentTouchContact();  // the finger lift must not also count as a tap
+    requestUpdate();
+    return true;
+  }
   if (!Dictionary::exists(epub->getCachePath().c_str())) {
     return false;
   }
@@ -3858,6 +3876,14 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
       const bool markCompleted = !stats.isCompleted;
       setBookCompleted(markCompleted);
       showCompletedFeedback(markCompleted);
+      requestUpdate();
+      break;
+    }
+    case EpubReaderMenuActivity::MenuAction::BILINGUAL_TOOLTIP: {  // bilingual
+      RenderLock lock(*this);
+      prepareCurrentSectionForRelayout();  // keep the reading position across the relayout
+      section.reset();                     // close its layout file before the layout cache is cleared
+      bilingual::setTooltipEnabled(!bilingual::tooltipEnabled());
       requestUpdate();
       break;
     }
@@ -6840,6 +6866,11 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
       // The status-bar title can route to the same SD fallback as the page. Scan
       // it into this batch before rendering so it does not evict page glyphs.
       renderStatusBar();
+      // bilingual: the tooltip may use the book's (SD) font; scan its text into the same batch.
+      bilingual::drawTooltip(renderer, *page, currentSpineIndex, section ? section->currentPage : -1, fontId,
+                             orientedMarginLeft, orientedMarginTop,
+                             renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight,
+                             renderer.getScreenHeight() - orientedMarginBottom - orientedMarginTop, true);
       if (!pageRenderScope->endScanAndPrewarm()) {
         pageRenderScope.reset();
         return false;
@@ -6897,6 +6928,10 @@ bool EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int fo
   const auto finalizeBufferComposition = [&]() {
     drawClippingHighlights(*page, fontId, orientedMarginTop, orientedMarginLeft);
     drawPublisherPageMarkers(renderer, *page, orientedMarginTop, contentBottom, foregroundBlack);
+    bilingual::drawTooltip(
+        renderer, *page, currentSpineIndex, section ? section->currentPage : -1, fontId,  // bilingual
+        orientedMarginLeft, orientedMarginTop, renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight,
+        contentBottom - orientedMarginTop, foregroundBlack);
 #if CROSSINK_APP_CAP_TOUCH
     if (activeFootnotePreview) {
       TouchHeaderBackButton::draw(renderer, TouchHeaderBackButton::headerRect(renderer, mappedInput), tr(STR_FOOTNOTES),

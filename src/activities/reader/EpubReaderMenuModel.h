@@ -22,6 +22,7 @@ enum class EpubReaderMenuAction : uint8_t {
   RESET_READING_PACE,
   READING_STATS,
   TOGGLE_COMPLETED,
+  BILINGUAL_TOOLTIP,  // bilingual
   READER_OPTIONS,
   CONTROLS_OPTIONS,
   BOOKMARK_TOGGLE,
@@ -90,6 +91,9 @@ enum class ReaderDrawerCatalogItem : uint8_t {
   RenderMode,
   IndexingMethod,
   ToggleCompleted,
+  BilingualTooltip,      // bilingual
+  HoldTime,              // bilingual
+  BilingualTooltipFont,  // bilingual
   Controls,
   ResetReadingPace,
   DeleteCache,
@@ -108,10 +112,11 @@ struct ReaderDrawerAvailability {
   bool hasClippings = false;
   bool showReadingPaceReset = false;
   bool hasStablePageNumbers = false;
+  bool hasTranslations = false;  // bilingual
 };
 
 struct ReaderDrawerTabCatalog {
-  std::array<ReaderDrawerCatalogItem, 12> items{};
+  std::array<ReaderDrawerCatalogItem, 16> items{};  // bilingual: 12 -> 16, the Settings tab is full
   uint8_t count = 0;
 
   constexpr void add(const ReaderDrawerCatalogItem item) { items[count++] = item; }
@@ -166,6 +171,11 @@ constexpr ReaderDrawerCatalog makeReaderDrawerCatalog(const ReaderDrawerAvailabi
   settings.add(ReaderDrawerCatalogItem::StatusBar);
   settings.add(ReaderDrawerCatalogItem::Controls);
   settings.add(ReaderDrawerCatalogItem::BookDictionary);
+  settings.add(ReaderDrawerCatalogItem::HoldTime);  // bilingual: dictionary + tooltip hold
+  if (available.hasTranslations) {                  // bilingual
+    settings.add(ReaderDrawerCatalogItem::BilingualTooltip);
+    settings.add(ReaderDrawerCatalogItem::BilingualTooltipFont);
+  }
   settings.add(ReaderDrawerCatalogItem::RenderMode);
   settings.add(ReaderDrawerCatalogItem::IndexingMethod);
   settings.add(ReaderDrawerCatalogItem::ToggleCompleted);

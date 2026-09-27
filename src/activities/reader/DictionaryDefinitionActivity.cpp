@@ -22,6 +22,7 @@
 #include "MappedInputManager.h"
 #include "Memory.h"
 #include "SdCardFontSystem.h"
+#include "bilingual/Bilingual.h"  // bilingual
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/Dictionary.h"
@@ -1147,7 +1148,7 @@ bool DictionaryDefinitionActivity::handleTouchDictionaryLookup() {
     touchDictionaryLookupHandled_ = false;
     return false;
   }
-  if (touchDictionaryLookupHandled_ || heldMs < kTouchDefinitionLookupHoldMs) {
+  if (touchDictionaryLookupHandled_ || heldMs < bilingual::holdMs()) {  // bilingual: shared Hold Time
     return false;
   }
   touchDictionaryLookupHandled_ = true;

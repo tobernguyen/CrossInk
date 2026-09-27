@@ -31,6 +31,7 @@ bool runTiledGrayscalePass(GfxRenderer& renderer, const Page& page, const int fo
     renderer.clearScreen(0x00);
     if (needsTextGrayscale) {
       page.render(renderer, fontId, marginLeft, marginTop, foregroundBlack);
+      if (grayscaleOverlay) grayscaleOverlay(renderer, page);  // bilingual
     } else {
       page.renderImages(renderer, fontId, marginLeft, marginTop);
     }
@@ -109,6 +110,7 @@ bool runTiledGrayscalePass(GfxRenderer& renderer, const Page& page, const int fo
       renderer.clearScreen(0x00);
       if (needsTextGrayscale) {
         page.render(renderer, fontId, marginLeft, marginTop, foregroundBlack);
+        if (grayscaleOverlay) grayscaleOverlay(renderer, page);  // bilingual
       } else {
         page.renderImages(renderer, fontId, marginLeft, marginTop);
       }

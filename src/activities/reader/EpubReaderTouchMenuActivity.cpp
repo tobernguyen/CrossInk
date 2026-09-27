@@ -27,6 +27,7 @@
 #include "StablePageSelectionModel.h"
 #include "activities/reader/ControlsOptionsActivity.h"
 #include "activities/settings/StatusBarSettingsActivity.h"
+#include "bilingual/Bilingual.h"  // bilingual
 #include "components/DrawerHandle.h"
 #include "components/SliderValue.h"
 #include "components/UITheme.h"
@@ -357,8 +358,9 @@ void EpubReaderTouchMenuActivity::onEnter() {
   Activity::onEnter();
   mappedInput.setReaderTouchscreenOverride(true);
 
-  const ReaderDrawerCatalog catalog = makeReaderDrawerCatalog(
-      {hasFootnotes, hasDictionary, hasBookmarks, hasClippings, showReadingPaceReset, stablePageCount > 0});
+  const ReaderDrawerCatalog catalog =
+      makeReaderDrawerCatalog({hasFootnotes, hasDictionary, hasBookmarks, hasClippings, showReadingPaceReset,
+                               stablePageCount > 0, bilingual::bookHasTranslations()});  // bilingual
   for (size_t tab = 0; tab < rootRows.size(); ++tab) {
     rootRows[tab].reserve(catalog[tab].count);
     rootRows[tab].assign(catalog[tab].items.begin(), catalog[tab].items.begin() + catalog[tab].count);
@@ -1309,6 +1311,17 @@ void EpubReaderTouchMenuActivity::activateRow(const RowId row) {
       isBookCompleted = !isBookCompleted;
       closeAndReturn(false, EpubReaderMenuAction::TOGGLE_COMPLETED);
       return;
+    case RowId::BilingualTooltip:  // bilingual: applied by the reader, which re-lays out the book
+      closeAndReturn(false, EpubReaderMenuAction::BILINGUAL_TOOLTIP);
+      return;
+    case RowId::HoldTime:  // bilingual: global preference, applied at once
+      bilingual::cycleHold();
+      requestUpdate();
+      return;
+    case RowId::BilingualTooltipFont:  // bilingual
+      bilingual::cycleTooltipFont();
+      requestUpdate();
+      return;
     case RowId::DeleteBookmarks:
       closeAndReturn(false, EpubReaderMenuAction::DELETE_BOOKMARKS);
       return;
@@ -2118,6 +2131,12 @@ const char* EpubReaderTouchMenuActivity::rowLabel(const RowId row) const {
       return tr(STR_INDEXING_METHOD);
     case RowId::ToggleCompleted:
       return isBookCompleted ? tr(STR_MARK_UNFINISHED) : tr(STR_MARK_FINISHED);
+    case RowId::BilingualTooltip:  // bilingual
+      return tr(STR_BILINGUAL_TOOLTIP);
+    case RowId::HoldTime:  // bilingual
+      return tr(STR_HOLD_TIME);
+    case RowId::BilingualTooltipFont:  // bilingual
+      return tr(STR_TOOLTIP_FONT);
     case RowId::Controls:
       return tr(STR_CAT_CONTROLS);
     case RowId::ResetReadingPace:
@@ -2172,6 +2191,10 @@ const char* EpubReaderTouchMenuActivity::rowValue(const RowId row, char* buffer,
     }
     case RowId::IndexingMethod:
       return draft.indexingMethod == 0 ? tr(STR_INDEXING_INCREMENTAL) : tr(STR_INDEXING_FULL_SECTION);
+    case RowId::HoldTime:  // bilingual
+      return bilingual::holdLabel();
+    case RowId::BilingualTooltipFont:  // bilingual
+      return bilingual::tooltipFontLabel();
     case RowId::BookDictionary:
       if (bookDictionaryPath.empty()) return tr(STR_DICT_USE_GLOBAL);
       for (size_t i = 1; i < dictionaryPaths.size(); ++i) {
@@ -2201,6 +2224,7 @@ bool EpubReaderTouchMenuActivity::rowIsToggle(const RowId row) const {
     case RowId::PublisherPages:
     case RowId::ExtraSpacing:
     case RowId::ForceIndents:
+    case RowId::BilingualTooltip:  // bilingual
     case RowId::EmbeddedStyle:
       return true;
     default:
@@ -2247,6 +2271,8 @@ bool EpubReaderTouchMenuActivity::rowToggleValue(const RowId row) const {
       return draft.forceParagraphIndents;
     case RowId::EmbeddedStyle:
       return draft.embeddedStyle;
+    case RowId::BilingualTooltip:  // bilingual
+      return bilingual::tooltipEnabled();
     default:
       return false;
   }

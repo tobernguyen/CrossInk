@@ -108,10 +108,11 @@ TEST(ReaderDrawerModel, CatalogOrderAndConditionalRowsMatchTouchDesign) {
   EXPECT_EQ(location.items[6], ReaderDrawerCatalogItem::DisplayQr);
 
   const auto& settings = complete[static_cast<size_t>(ReaderDrawerTab::Settings)];
-  EXPECT_EQ(settings.count, 9);
+  EXPECT_EQ(settings.count, 10);  // bilingual: + Hold Time
   EXPECT_EQ(settings.items[0], ReaderDrawerCatalogItem::StatusBar);
   EXPECT_EQ(settings.items[1], ReaderDrawerCatalogItem::Controls);
-  EXPECT_EQ(settings.items[6], ReaderDrawerCatalogItem::ResetReadingPace);
+  EXPECT_EQ(settings.items[3], ReaderDrawerCatalogItem::HoldTime);          // bilingual
+  EXPECT_EQ(settings.items[7], ReaderDrawerCatalogItem::ResetReadingPace);  // bilingual: was [6]
 }
 
 TEST(ReaderDrawerModel, ChangeMaskSeparatesPreviewRelayoutAndOrientation) {

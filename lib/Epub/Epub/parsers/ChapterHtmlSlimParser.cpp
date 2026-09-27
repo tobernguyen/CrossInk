@@ -22,6 +22,7 @@
 #include <new>
 #include <string_view>
 
+#include "ElementSkipHook.h"  // bilingual
 #include "Epub.h"
 #include "Epub/Page.h"
 #include "Epub/converters/ImageDecoderFactory.h"
@@ -1864,6 +1865,12 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       }
       self->addPendingPublisherPageMarker(markerLabel);
     }
+    self->skipCurrentElement();
+    return;
+  }
+
+  // bilingual: the app may hide elements from layout (translated paragraphs in tooltip mode).
+  if (epub_hooks::skipElement && epub_hooks::skipElement(atts)) {
     self->skipCurrentElement();
     return;
   }

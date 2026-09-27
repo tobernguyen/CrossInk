@@ -1,0 +1,78 @@
+# Fork-only workflow (tobernguyen/CrossInk): test and build the bilingual X4 Pro firmware on every
+# push to the `bilingual` branch and publish it as the rolling `bilingual-latest` pre-release.
+# Upstream's own workflows are disabled in the fork, so this is the only one that runs.
+name: Bilingual firmware
+
+on:
+  push:
+    branches: [bilingual]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bilingual-firmware
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/packages
+            ~/.platformio/platforms
+          key: ${{ runner.os }}-platformio-bilingual-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO and CMake
+        run: uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip cmake
+
+      - name: Host tests (bilingual + upstream suites the fork touches)
+        run: |
+          dpkg -s libexpat1-dev >/dev/null 2>&1 || sudo apt-get install -y libexpat1-dev  # BilingualTooltipTest
+          cmake -S test -B build/test -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/test --target BilingualTest BilingualTooltipTest ReaderDrawerModelTest -j4
+          build/test/bilingual/BilingualTest
+          build/test/bilingual/BilingualTooltipTest
+          build/test/reader_drawer_model/ReaderDrawerModelTest
+
+      - name: Stamp version
+        # OTA compares numeric segments only, so this still reads as the upstream version it is based on.
+        run: |
+          base=$(sed -n '/^\[crossink\]$/,/^\[/s/^version = //p' platformio.ini)
+          version="${base}-bilingual.${GITHUB_RUN_NUMBER}"
+          sed -i "/^\[crossink\]$/,/^\[/s/^version = .*/version = ${version}/" platformio.ini
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+
+      - name: Build X4 Pro firmware
+        env:
+          CROSSINK_RELEASE_VERSION: ${{ env.VERSION }}
+        run: pio run -e x4-pro  # pio defaults to one job per core; upstream pins -j1 (12 min vs a few)
+
+      - name: Publish bilingual-latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bin=$(ls .pio/build/x4-pro/firmware-x4-pro-*.bin | head -1)
+          cp "$bin" firmware-x4-pro-bilingual.bin
+          sha=$(sha256sum firmware-x4-pro-bilingual.bin | cut -c1-16)
+          gh release delete bilingual-latest --cleanup-tag --yes || true
+          gh release create bilingual-latest firmware-x4-pro-bilingual.bin \
+            --prerelease --target "$GITHUB_SHA" --title "Bilingual ${VERSION}" \
+            --notes "X4 Pro firmware built from ${GITHUB_SHA::12} (sha256 ${sha}…). Flash with Settings → System → SD Card Firmware Update. See BILINGUAL.md."
